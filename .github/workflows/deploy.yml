@@ -74,7 +74,6 @@ jobs:
             cd /home/${{ secrets.EC2_USER }}/my-mern-app/backend
 
             echo "Setting up backend environment..."
-            touch .env
             echo "MONGO_URI=${{ secrets.MONGO_URI }}" > .env
             echo "PORT=${{ secrets.PORT || 5000 }}" >> .env
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
@@ -96,6 +95,7 @@ jobs:
 
             echo "Building frontend..."
             npm install
+            npx update-browserslist-db@latest
             npm run build
 
             # Move the build folder to Nginx's default public directory
