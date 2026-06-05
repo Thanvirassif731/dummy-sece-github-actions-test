@@ -1,4 +1,4 @@
-name: Deploy Full MERN Stack to EC2
+name: Deploy Full MERN Stack to Fresh EC2
 
 on:
   push:
@@ -6,67 +6,98 @@ on:
       - main
 
 jobs:
-  deploy-all-to-ec2:
+  deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to EC2 via SSH
+      # 1. Checkout the code on the GitHub Actions runner
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Securely copy all project files directly to the EC2 instance
+      - name: Copy files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "."
+          target: "/home/${{ secrets.EC2_USER }}/my-mern-app"
+
+      # 3. SSH in to install dependencies, build, and run
+      - name: Execute Provisioning & Deployment via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # 1. Navigate to your root application directory
-            # UPDATE THIS to your actual project folder path on the EC2 instance
-            cd /var/www/my-mern-app
+            # ===================================================
+            # PHASE 1: SERVER PROVISIONING (Installs only if missing)
+            # ===================================================
             
-            # 2. Pull the latest code
-            git pull origin main
-
-            # ---------------------------------------------------
-            # TIER 3: DATABASE (MongoDB)
-            # ---------------------------------------------------
-            if ! command -v mongod &> /dev/null; then
-                echo "MongoDB not found. Installing..."
-                sudo apt-get update
-                sudo apt-get install -y mongodb
+            # Install Nginx
+            if ! command -v nginx &> /dev/null; then
+                echo "Installing Nginx..."
+                sudo apt-get update -y
+                sudo apt-get install -y nginx
             fi
-            sudo systemctl start mongodb
-            sudo systemctl enable mongodb
 
-            # ---------------------------------------------------
-            # TIER 2: BACKEND (Node.js)
-            # ---------------------------------------------------
-            # UPDATE THIS if your backend folder is named differently
-            cd backend 
-            
-            echo "Creating .env file..."
+            # Install Node.js (v20)
+            if ! command -v node &> /dev/null; then
+                echo "Installing Node.js..."
+                curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+                sudo apt-get install -y nodejs
+            fi
+
+            # Install PM2 (Process Manager for Node)
+            if ! command -v pm2 &> /dev/null; then
+                echo "Installing PM2..."
+                sudo npm install -g pm2
+            fi
+
+            # Install MongoDB (Using official MongoDB repository)
+            if ! command -v mongod &> /dev/null; then
+                echo "Installing MongoDB..."
+                curl -fsSL https://pgp.mongodb.com/server-7.0.asc | sudo gpg --yes -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
+                echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+                sudo apt-get update -y
+                sudo apt-get install -y mongodb-org
+            fi
+
+            # Ensure MongoDB is running and starts on boot
+            sudo systemctl start mongod
+            sudo systemctl enable mongod
+
+            # ===================================================
+            # PHASE 2: BACKEND SETUP
+            # ===================================================
+            cd /home/${{ secrets.EC2_USER }}/my-mern-app/backend
+
+            echo "Setting up backend environment..."
             echo "MONGO_URI=${{ secrets.MONGO_URI }}" > .env
             echo "PORT=${{ secrets.PORT || 5000 }}" >> .env
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
 
             npm install
             
-            # Restart or start the backend process
+            # Restart backend if it exists, otherwise start it
             pm2 restart backend-api || pm2 start index.js --name "backend-api"
-            
-            cd .. # Go back to root project folder
 
-            # ---------------------------------------------------
-            # TIER 1: FRONTEND (React/Vite/etc.)
-            # ---------------------------------------------------
-            # UPDATE THIS if your frontend folder is named differently
-            cd frontend
-            
+            # ===================================================
+            # PHASE 3: FRONTEND SETUP
+            # ===================================================
+            cd /home/${{ secrets.EC2_USER }}/my-mern-app/frontend
+
+            echo "Building frontend..."
             npm install
             npm run build
-            
-            # NOTE: To serve the frontend from EC2, you typically use Nginx.
-            # If Nginx is configured to serve from /var/www/html, uncomment the lines below:
-            sudo rm -rf /var/www/html/*
-            sudo cp -r dist/* /var/www/html/   # Use build/* if using Create React App instead of Vite
-            sudo systemctl restart nginx
 
-            echo "Deployment to EC2 completed successfully!"
-            echo "Backend API running on port ${PORT:-5000}"
-            echo "Frontend served via Nginx at your IP. Open in this format: http://your-ec2-ip-or-domain"
+            # Move the build folder to Nginx's default public directory
+            echo "Deploying frontend to Nginx..."
+            sudo rm -rf /var/www/html/*
+            
+            # IMPORTANT: Change 'dist/*' to 'build/*' below if you are using Create React App instead of Vite
+            sudo cp -r dist/* /var/www/html/ 
+            sudo systemctl restart nginx
+            
+            echo "🚀 Deployment Successful! Backend on port ${PORT:-5000}, Frontend live on your EC2 IP."
