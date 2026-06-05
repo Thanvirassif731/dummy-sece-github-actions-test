@@ -74,6 +74,7 @@ jobs:
             cd /home/${{ secrets.EC2_USER }}/my-mern-app/backend
 
             echo "Setting up backend environment..."
+            touch .env
             echo "MONGO_URI=${{ secrets.MONGO_URI }}" > .env
             echo "PORT=${{ secrets.PORT || 5000 }}" >> .env
             echo "JWT_SECRET=${{ secrets.JWT_SECRET }}" >> .env
@@ -81,8 +82,13 @@ jobs:
             npm install
             
             # Restart backend if it exists, otherwise start it
-            pm2 restart backend-api || pm2 start index.js --name "backend-api"
-
+            if command -v node &> /dev/null; then
+                echo "Restarting backend..."
+                pm2 restart server.js --name "backend-api" || pm2 start server.js --name "backend-api"
+            else
+                echo "Starting backend..."
+                pm2 start server.js --name "backend-api"
+            fi
             # ===================================================
             # PHASE 3: FRONTEND SETUP
             # ===================================================
