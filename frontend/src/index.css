@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --- FORCE OVERRIDE VITE DEFAULTS --- */
+:root {
+  background-color: white; /* get rid of the dark #242424 background */
+  color: black;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  display: block; /* This fixes the 'split screen' issue */
+  width: 100%;
+  min-height: 100vh;
+}
+
+#root {
+  width: 100%;
+  min-height: 100vh;
+  display: block;
+}
