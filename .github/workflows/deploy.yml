@@ -96,6 +96,11 @@ jobs:
             echo "Building frontend..."
             npm install
             npx update-browserslist-db@latest
+
+            # Inject EC2 IP into frontend .env before build
+            echo "VITE_API_IP=${{ secrets.EC2_HOST }}" > .env
+            echo "VITE_API_PORT=${{ secrets.PORT || 5000 }}" >> .env
+
             npm run build
 
             # Move the build folder to Nginx's default public directory

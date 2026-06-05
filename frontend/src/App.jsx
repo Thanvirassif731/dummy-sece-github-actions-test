@@ -34,7 +34,7 @@ import {
  */
 
 const USE_MOCK_API = false;
-const API_BASE_URL = "http://localhost:5000/api"; // "http://localhost:5000/api"; // Change this for production
+const API_BASE_URL = `http://${import.meta.env.VITE_API_IP}:${import.meta.env.VITE_API_PORT}/api`;
 
 // --- MOCK API SERVICE ---
 const mockApi = {
