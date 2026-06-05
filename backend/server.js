@@ -63,6 +63,11 @@ const validate = (validations) => async (req, res, next) => {
     return res.status(400).json({ error: 'Validation failed', details: errors.array() });
 };
 
+// Health Check
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date() });
+});
+
 // --- DATABASE CONNECTION ---
 mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('✅ Connected to MongoDB Compass'))
